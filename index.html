@@ -110,31 +110,68 @@
       '<p class="titulo">' + texto(mensagem) + "</p>" +
       '<p class="dica">Abra o lembrete direto no app Lembretes, ' +
       "ou confira o link no e-mail. Formato esperado:<br>" +
-      "<code>?lista=Rem%C3%A9dios&amp;titulo=Femibion</code></p>";
+      "<code>?k=&lt;base64 de lista|titulo&gt;</code></p>";
   }
 
-  // Os dados vêm no FRAGMENTO (#), não na query string: o que está depois do #
-  // nunca é enviado ao servidor, então o título do lembrete não entra no log de
-  // acesso do GitHub. A query string continua aceita como reserva, para link
-  // antigo que já tenha saído em algum e-mail.
+  // O dado vem em ?k=, num base64 de "lista|titulo".
+  //
+  // Por que não o fragmento (#), que seria melhor: o Gmail envolve todo link
+  // num redirecionador próprio, e o navegador não envia a parte depois do '#'
+  // ao pedir o redirecionador — o fragmento fica para trás no salto e a página
+  // abre sem dado nenhum. A mesma propriedade que o protegia do log o mata aqui.
+  //
+  // O base64 não é segredo: é para o log de acesso guardar algo ilegível em vez
+  // de "Exame de sangue" em texto claro. Quem quiser decodificar, decodifica.
+  //
+  // O formato antigo (lista/titulo soltos, em ?query ou em #fragmento) continua
+  // aceito: e-mail já entregue não se corrige.
+  function deBase64(txt) {
+    var limpo = txt.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+    while (limpo.length % 4) limpo += "=";
+    var bin = atob(limpo);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+
   var params;
   try {
     var bruto = window.location.hash.replace(/^#/, "");
-    params = new URLSearchParams(bruto || window.location.search);
+    params = new URLSearchParams(window.location.search || bruto);
+    if (!params.has("k") && !params.has("lista") && !params.has("titulo") && bruto) {
+      params = new URLSearchParams(bruto);
+    }
   } catch (e) {
     return erro("Não consegui ler os parâmetros do link.");
   }
 
-  var lista = (params.get("lista") || "").trim();
-  var titulo = (params.get("titulo") || "").trim();
+  var lista = "";
+  var titulo = "";
+  var k = (params.get("k") || "").trim();
+  if (k) {
+    // Não chamar esta variável de "texto": o var sobe ao topo da função e
+    // sombreia o texto() que escapa o HTML, deixando a página em branco.
+    var decodificado;
+    try {
+      decodificado = deBase64(k);
+    } catch (e) {
+      return erro("O código do link veio corrompido e não pôde ser lido.");
+    }
+    // Parte no PRIMEIRO "|": título com barra vertical continua funcionando.
+    var corte = decodificado.indexOf("|");
+    if (corte === -1) {
+      return erro("O código do link não separa a lista do título da tarefa.");
+    }
+    lista = decodificado.slice(0, corte).trim();
+    titulo = decodificado.slice(corte + 1).trim();
+  } else {
+    lista = (params.get("lista") || "").trim();
+    titulo = (params.get("titulo") || "").trim();
+  }
 
   if (!lista && !titulo) return erro("O link não trouxe a lista nem o título da tarefa.");
   if (!lista) return erro("O link não trouxe o nome da lista.");
   if (!titulo) return erro("O link não trouxe o título da tarefa.");
-  if (lista.indexOf("|") !== -1 || titulo.indexOf("|") !== -1) {
-    return erro('A lista ou o título contém o caractere "|", que é o separador usado pelo atalho.');
-  }
-
   var destino =
     "shortcuts://run-shortcut" +
     "?name=" + encodeURIComponent(NOME_ATALHO) +
