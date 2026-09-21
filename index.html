@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Concluir lembrete</title>
+<style>
+  :root {
+    --fundo: #f4f5f7;
+    --cartao: #ffffff;
+    --texto: #16181d;
+    --fraco: #626875;
+    --borda: #dfe2e8;
+    --acao: #1f9d55;
+    --acao-toque: #17784120;
+    --erro: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fundo: #101216;
+      --cartao: #1a1d23;
+      --texto: #f0f1f4;
+      --fraco: #9aa1ae;
+      --borda: #2c3038;
+      --acao: #2ec26f;
+      --erro: #f2938c;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: var(--acao-toque); }
+  body {
+    margin: 0;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--fundo);
+    color: var(--texto);
+    font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main {
+    width: 100%;
+    max-width: 420px;
+    background: var(--cartao);
+    border: 1px solid var(--borda);
+    border-radius: 18px;
+    padding: 28px 22px;
+    text-align: center;
+  }
+  .lista {
+    font-size: 13px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--fraco);
+    margin: 0 0 6px;
+  }
+  .titulo {
+    font-size: 27px;
+    font-weight: 650;
+    line-height: 1.25;
+    margin: 0 0 28px;
+    overflow-wrap: anywhere;
+  }
+  .botao {
+    display: block;
+    width: 100%;
+    padding: 20px 16px;
+    border: none;
+    border-radius: 14px;
+    background: var(--acao);
+    color: #fff;
+    font-size: 20px;
+    font-weight: 650;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .botao:active { filter: brightness(.92); }
+  .dica {
+    margin: 20px 0 0;
+    font-size: 14px;
+    color: var(--fraco);
+  }
+  .erro .titulo { color: var(--erro); font-size: 21px; }
+  code {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+    color: var(--fraco);
+  }
+</style>
+</head>
+<body>
+<main id="cartao"></main>
+<script>
+(function () {
+  var NOME_ATALHO = "Concluir Lembrete";
+  var cartao = document.getElementById("cartao");
+
+  function texto(valor) {
+    var no = document.createTextNode(valor);
+    var span = document.createElement("span");
+    span.appendChild(no);
+    return span.innerHTML;
+  }
+
+  function erro(mensagem) {
+    cartao.className = "erro";
+    cartao.innerHTML =
+      '<p class="lista">Link incompleto</p>' +
+      '<p class="titulo">' + texto(mensagem) + "</p>" +
+      '<p class="dica">Abra o lembrete direto no app Lembretes, ' +
+      "ou confira o link no e-mail. Formato esperado:<br>" +
+      "<code>?lista=Rem%C3%A9dios&amp;titulo=Femibion</code></p>";
+  }
+
+  var params;
+  try {
+    params = new URLSearchParams(window.location.search);
+  } catch (e) {
+    return erro("Não consegui ler os parâmetros do link.");
+  }
+
+  var lista = (params.get("lista") || "").trim();
+  var titulo = (params.get("titulo") || "").trim();
+
+  if (!lista && !titulo) return erro("O link não trouxe a lista nem o título da tarefa.");
+  if (!lista) return erro("O link não trouxe o nome da lista.");
+  if (!titulo) return erro("O link não trouxe o título da tarefa.");
+  if (lista.indexOf("|") !== -1 || titulo.indexOf("|") !== -1) {
+    return erro('A lista ou o título contém o caractere "|", que é o separador usado pelo atalho.');
+  }
+
+  var destino =
+    "shortcuts://run-shortcut" +
+    "?name=" + encodeURIComponent(NOME_ATALHO) +
+    "&input=text" +
+    "&text=" + encodeURIComponent(lista + "|" + titulo);
+
+  cartao.innerHTML =
+    '<p class="lista">' + texto(lista) + "</p>" +
+    '<p class="titulo">' + texto(titulo) + "</p>" +
+    '<a class="botao" id="acao" href="' + destino.replace(/"/g, "%22") + '">✅ Concluir tarefa</a>' +
+    '<p class="dica">Se nada acontecer, toque em “Abrir no Safari” ' +
+    "no menu do app de e-mail e tente de novo.</p>";
+
+  // O <a> resolve o caso comum; o clique programático cobre navegadores
+  // embutidos que ignoram o href de esquema customizado no toque direto.
+  document.getElementById("acao").addEventListener("click", function () {
+    setTimeout(function () { window.location.href = destino; }, 0);
+  });
+})();
+</script>
+</body>
+</html>
