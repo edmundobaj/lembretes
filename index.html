@@ -113,9 +113,14 @@
       "<code>?lista=Rem%C3%A9dios&amp;titulo=Femibion</code></p>";
   }
 
+  // Os dados vêm no FRAGMENTO (#), não na query string: o que está depois do #
+  // nunca é enviado ao servidor, então o título do lembrete não entra no log de
+  // acesso do GitHub. A query string continua aceita como reserva, para link
+  // antigo que já tenha saído em algum e-mail.
   var params;
   try {
-    params = new URLSearchParams(window.location.search);
+    var bruto = window.location.hash.replace(/^#/, "");
+    params = new URLSearchParams(bruto || window.location.search);
   } catch (e) {
     return erro("Não consegui ler os parâmetros do link.");
   }
